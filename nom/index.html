@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `nom` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, nom">
+
+    <title>nom - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <section class="sidebar">
+        
+        <p class='location'></p><script>window.sidebarCurrent = {name: 'nom', ty: 'mod', relpath: '../'};</script>
+    </section>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press 'S' to search, '?' for more options..."
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Crate <a class='mod' href=''>nom</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-0' class='srclink' href='../src/nom/lib.rs.html#1-143' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Nom, eating data byte by byte</p>
+
+<p>The goal is to make a parser combinator library that is safe,
+supports streaming (push and pull), and as much as possible zero copy.</p>
+
+<p>The code is available on <a href="https://github.com/Geal/nom">Github</a></p>
+
+<h1 id="example" class='section-header'><a
+                           href="#example">Example</a></h1><pre class='rust rust-example-rendered'>
+<span class='attribute'>#[<span class='ident'>macro_use</span>]</span>
+<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>nom</span>;
+
+<span class='kw'>use</span> <span class='ident'>nom</span>::{<span class='ident'>Consumer</span>,<span class='ident'>ConsumerState</span>,<span class='ident'>MemProducer</span>,<span class='ident'>IResult</span>};
+<span class='kw'>use</span> <span class='ident'>nom</span>::<span class='ident'>IResult</span>::<span class='op'>*</span>;
+
+<span class='comment'>// Parser definition</span>
+
+<span class='macro'>named</span><span class='macro'>!</span>( <span class='ident'>om_parser</span>,                   <span class='macro'>tag</span><span class='macro'>!</span>( <span class='string'>&quot;om&quot;</span> ) );
+<span class='macro'>named</span><span class='macro'>!</span>( <span class='ident'>nomnom_parser</span><span class='op'>&lt;</span> <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>], <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>]<span class='op'>&gt;</span> <span class='op'>&gt;</span>, <span class='macro'>many1</span><span class='macro'>!</span>( <span class='macro'>tag</span><span class='macro'>!</span>( <span class='string'>&quot;nom&quot;</span> ) ) );
+<span class='macro'>named</span><span class='macro'>!</span>( <span class='ident'>end_parser</span>,                  <span class='macro'>tag</span><span class='macro'>!</span>( <span class='string'>&quot;kthxbye&quot;</span>)  );
+
+
+<span class='comment'>// Streaming parsing and state machine</span>
+
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>PartialEq</span>,<span class='ident'>Eq</span>,<span class='ident'>Debug</span>)]</span>
+<span class='kw'>enum</span> <span class='ident'>State</span> {
+  <span class='ident'>Beginning</span>,
+  <span class='ident'>Middle</span>,
+  <span class='ident'>End</span>,
+  <span class='ident'>Done</span>
+}
+
+<span class='kw'>struct</span> <span class='ident'>TestConsumer</span> {
+  <span class='ident'>state</span>:   <span class='ident'>State</span>,
+  <span class='ident'>counter</span>: <span class='ident'>usize</span>
+}
+
+<span class='kw'>impl</span> <span class='ident'>Consumer</span> <span class='kw'>for</span> <span class='ident'>TestConsumer</span> {
+  <span class='kw'>fn</span> <span class='ident'>consume</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>input</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>]) <span class='op'>-&gt;</span> <span class='ident'>ConsumerState</span> {
+    <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>state</span> {
+      <span class='ident'>State</span>::<span class='ident'>Beginning</span> <span class='op'>=&gt;</span> {
+        <span class='kw'>match</span> <span class='ident'>om_parser</span>(<span class='ident'>input</span>) {
+          <span class='ident'>Error</span>(_)      <span class='op'>=&gt;</span> <span class='ident'>ConsumerState</span>::<span class='ident'>ConsumerError</span>(<span class='number'>0</span>),
+          <span class='ident'>Incomplete</span>(_) <span class='op'>=&gt;</span> <span class='ident'>ConsumerState</span>::<span class='ident'>Await</span>(<span class='number'>0</span>, <span class='number'>2</span>),
+          <span class='ident'>Done</span>(_,_)     <span class='op'>=&gt;</span> {
+            <span class='comment'>// &quot;om&quot; was recognized, get to the next state</span>
+            <span class='self'>self</span>.<span class='ident'>state</span> <span class='op'>=</span> <span class='ident'>State</span>::<span class='ident'>Middle</span>;
+            <span class='ident'>ConsumerState</span>::<span class='ident'>Await</span>(<span class='number'>2</span>, <span class='number'>3</span>)
+          }
+        }
+      },
+      <span class='ident'>State</span>::<span class='ident'>Middle</span>    <span class='op'>=&gt;</span> {
+        <span class='kw'>match</span> <span class='ident'>nomnom_parser</span>(<span class='ident'>input</span>) {
+          <span class='ident'>Error</span>(<span class='ident'>a</span>)         <span class='op'>=&gt;</span> {
+            <span class='comment'>// the &quot;nom&quot; parser failed, let&#39;s get to the next state</span>
+            <span class='self'>self</span>.<span class='ident'>state</span> <span class='op'>=</span> <span class='ident'>State</span>::<span class='ident'>End</span>;
+            <span class='ident'>ConsumerState</span>::<span class='ident'>Await</span>(<span class='number'>0</span>, <span class='number'>7</span>)
+          },
+          <span class='ident'>Incomplete</span>(_)    <span class='op'>=&gt;</span> <span class='ident'>ConsumerState</span>::<span class='ident'>Await</span>(<span class='number'>0</span>, <span class='number'>3</span>),
+          <span class='ident'>Done</span>(<span class='ident'>i</span>,<span class='ident'>noms_vec</span>) <span class='op'>=&gt;</span> {
+            <span class='comment'>// we got a few noms, let&#39;s count them and continue</span>
+            <span class='self'>self</span>.<span class='ident'>counter</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>counter</span> <span class='op'>+</span> <span class='ident'>noms_vec</span>.<span class='ident'>len</span>();
+            <span class='ident'>ConsumerState</span>::<span class='ident'>Await</span>(<span class='ident'>input</span>.<span class='ident'>len</span>() <span class='op'>-</span> <span class='ident'>i</span>.<span class='ident'>len</span>(), <span class='number'>3</span>)
+          }
+        }
+      },
+      <span class='ident'>State</span>::<span class='ident'>End</span>       <span class='op'>=&gt;</span> {
+        <span class='kw'>match</span> <span class='ident'>end_parser</span>(<span class='ident'>input</span>) {
+          <span class='ident'>Error</span>(_)      <span class='op'>=&gt;</span> <span class='ident'>ConsumerState</span>::<span class='ident'>ConsumerError</span>(<span class='number'>0</span>),
+          <span class='ident'>Incomplete</span>(_) <span class='op'>=&gt;</span> <span class='ident'>ConsumerState</span>::<span class='ident'>Await</span>(<span class='number'>0</span>, <span class='number'>7</span>),
+          <span class='ident'>Done</span>(_,_)     <span class='op'>=&gt;</span> {
+            <span class='comment'>// we recognized the suffix, everything was parsed correctly</span>
+            <span class='self'>self</span>.<span class='ident'>state</span> <span class='op'>=</span> <span class='ident'>State</span>::<span class='ident'>Done</span>;
+            <span class='ident'>ConsumerState</span>::<span class='ident'>ConsumerDone</span>
+          }
+        }
+      },
+      <span class='ident'>State</span>::<span class='ident'>Done</span>      <span class='op'>=&gt;</span> {
+        <span class='comment'>// this should not be called</span>
+        <span class='ident'>ConsumerState</span>::<span class='ident'>ConsumerError</span>(<span class='number'>42</span>)
+      }
+    }
+  }
+
+  <span class='kw'>fn</span> <span class='ident'>end</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
+    <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;we counted {} noms&quot;</span>, <span class='self'>self</span>.<span class='ident'>counter</span>);
+  }
+}
+
+<span class='kw'>fn</span> <span class='ident'>main</span>() {
+  <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>p</span> <span class='op'>=</span> <span class='ident'>MemProducer</span>::<span class='ident'>new</span>(<span class='string'>b&quot;omnomnomnomkthxbye&quot;</span>, <span class='number'>4</span>);
+  <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>c</span> <span class='op'>=</span> <span class='ident'>TestConsumer</span>{<span class='ident'>state</span>: <span class='ident'>State</span>::<span class='ident'>Beginning</span>, <span class='ident'>counter</span>: <span class='number'>0</span>};
+  <span class='ident'>c</span>.<span class='ident'>run</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>p</span>);
+
+  <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>c</span>.<span class='ident'>counter</span>, <span class='number'>3</span>);
+  <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>c</span>.<span class='ident'>state</span>, <span class='ident'>State</span>::<span class='ident'>Done</span>);
+}
+</pre>
+</div><h2 id='macros' class='section-header'><a href="#macros">Macros</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.alt!.html'
+                               title='nom::alt!'>alt!</a></td>
+                        <td class='docblock short'>
+                             <p>try a list of parser, return the result of the first successful one</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.alt_parser!.html'
+                               title='nom::alt_parser!'>alt_parser!</a></td>
+                        <td class='docblock short'>
+                             <p>Internal parser, do not use directly</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.apply!.html'
+                               title='nom::apply!'>apply!</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.call!.html'
+                               title='nom::call!'>call!</a></td>
+                        <td class='docblock short'>
+                             <p>Used to wrap common expressions and function as macros</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.chain!.html'
+                               title='nom::chain!'>chain!</a></td>
+                        <td class='docblock short'>
+                             <p>chains parsers and assemble the results through a closure</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.chaining_parser!.html'
+                               title='nom::chaining_parser!'>chaining_parser!</a></td>
+                        <td class='docblock short'>
+                             <p>Internal parser, do not use directly</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.closure!.html'
+                               title='nom::closure!'>closure!</a></td>
+                        <td class='docblock short'>
+                             <p>Wraps a parser in a closure</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.cond!.html'
+                               title='nom::cond!'>cond!</a></td>
+                        <td class='docblock short'>
+                             <p>Conditional combinator</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.count!.html'
+                               title='nom::count!'>count!</a></td>
+                        <td class='docblock short'>
+                             <p>Applies the child parser a specified number of times</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.count_fixed!.html'
+                               title='nom::count_fixed!'>count_fixed!</a></td>
+                        <td class='docblock short'>
+                             <p>Applies the child parser a fixed number of times and returns a fixed size array</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.dbg!.html'
+                               title='nom::dbg!'>dbg!</a></td>
+                        <td class='docblock short'>
+                             <p>Prints a message if the parser fails</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.dbg_dmp!.html'
+                               title='nom::dbg_dmp!'>dbg_dmp!</a></td>
+                        <td class='docblock short'>
+                             <p>Prints a message and the input if the parser fails</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.delimited!.html'
+                               title='nom::delimited!'>delimited!</a></td>
+                        <td class='docblock short'>
+                             <p>delimited(opening, X, closing) returns X</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.error!.html'
+                               title='nom::error!'>error!</a></td>
+                        <td class='docblock short'>
+                             <p>Prevents backtracking if the child parser fails</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.filter!.html'
+                               title='nom::filter!'>filter!</a></td>
+                        <td class='docblock short'>
+                             <p>returns the longest list of bytes until the provided parser fails</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.flat_map!.html'
+                               title='nom::flat_map!'>flat_map!</a></td>
+                        <td class='docblock short'>
+                             <p>flat_map! combines a parser R -&gt; IResult<R,S> and
+a parser S -&gt; IResult<S,T> to return another
+parser R -&gt; IResult<R,T></p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.is_a!.html'
+                               title='nom::is_a!'>is_a!</a></td>
+                        <td class='docblock short'>
+                             <p>returns the longest list of bytes that appear in the provided array</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.is_not!.html'
+                               title='nom::is_not!'>is_not!</a></td>
+                        <td class='docblock short'>
+                             <p>returns the longest list of bytes that do not appear in the provided array</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.length_value!.html'
+                               title='nom::length_value!'>length_value!</a></td>
+                        <td class='docblock short'>
+                             <p>returns</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.many0!.html'
+                               title='nom::many0!'>many0!</a></td>
+                        <td class='docblock short'>
+                             <p>Applies the parser 0 or more times and returns the list of results in a Vec</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.many1!.html'
+                               title='nom::many1!'>many1!</a></td>
+                        <td class='docblock short'>
+                             <p>Applies the parser 1 or more times and returns the list of results in a Vec</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.map!.html'
+                               title='nom::map!'>map!</a></td>
+                        <td class='docblock short'>
+                             <p>maps a function on the result of a parser</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.map_opt!.html'
+                               title='nom::map_opt!'>map_opt!</a></td>
+                        <td class='docblock short'>
+                             <p>maps a function returning an Option on the output of a parser</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.map_res!.html'
+                               title='nom::map_res!'>map_res!</a></td>
+                        <td class='docblock short'>
+                             <p>maps a function returning a Result on the output of a parser</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.named!.html'
+                               title='nom::named!'>named!</a></td>
+                        <td class='docblock short'>
+                             <p>Makes a function from a parser combination</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.opt!.html'
+                               title='nom::opt!'>opt!</a></td>
+                        <td class='docblock short'>
+                             <p>make the underlying parser optional</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.pair!.html'
+                               title='nom::pair!'>pair!</a></td>
+                        <td class='docblock short'>
+                             <p>pair(X,Y), returns (x,y)</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.peek!.html'
+                               title='nom::peek!'>peek!</a></td>
+                        <td class='docblock short'>
+                             <p>returns a result without consuming the input</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.preceded!.html'
+                               title='nom::preceded!'>preceded!</a></td>
+                        <td class='docblock short'>
+                             <p>preceded(opening, X) returns X</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.pusher!.html'
+                               title='nom::pusher!'>pusher!</a></td>
+                        <td class='docblock short'>
+                             <p>Prepares a parser function for a push pipeline</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.separated_list!.html'
+                               title='nom::separated_list!'>separated_list!</a></td>
+                        <td class='docblock short'>
+                             <p>separated_list(sep, X) returns Vec<X></p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.separated_nonempty_list!.html'
+                               title='nom::separated_nonempty_list!'>separated_nonempty_list!</a></td>
+                        <td class='docblock short'>
+                             <p>separated_nonempty_list(sep, X) returns Vec<X></p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.separated_pair!.html'
+                               title='nom::separated_pair!'>separated_pair!</a></td>
+                        <td class='docblock short'>
+                             <p>separated_pair(X,sep,Y) returns (x,y)</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.tag!.html'
+                               title='nom::tag!'>tag!</a></td>
+                        <td class='docblock short'>
+                             <p>declares a byte array as a suite to recognize</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.take!.html'
+                               title='nom::take!'>take!</a></td>
+                        <td class='docblock short'>
+                             <p>generates a parser consuming the specified number of bytes</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.take_str!.html'
+                               title='nom::take_str!'>take_str!</a></td>
+                        <td class='docblock short'>
+                             <p>same as take! but returning a &amp;str</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.take_until!.html'
+                               title='nom::take_until!'>take_until!</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.take_until_and_consume!.html'
+                               title='nom::take_until_and_consume!'>take_until_and_consume!</a></td>
+                        <td class='docblock short'>
+                             <p>generates a parser consuming bytes until the specified byte sequence is found</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.take_until_either!.html'
+                               title='nom::take_until_either!'>take_until_either!</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.take_until_either_and_consume!.html'
+                               title='nom::take_until_either_and_consume!'>take_until_either_and_consume!</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='macro' href='macro.terminated!.html'
+                               title='nom::terminated!'>terminated!</a></td>
+                        <td class='docblock short'>
+                             <p>terminated(X, closing) returns X</p>
+
+                        </td>
+                    </tr>
+                </table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.FileProducer.html'
+                               title='nom::FileProducer'>FileProducer</a></td>
+                        <td class='docblock short'>
+                             <p>Can produce data from a file</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='struct' href='struct.MemProducer.html'
+                               title='nom::MemProducer'>MemProducer</a></td>
+                        <td class='docblock short'>
+                             <p>Can parse data from an already in memory byte array</p>
+
+                        </td>
+                    </tr>
+                </table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.ConsumerState.html'
+                               title='nom::ConsumerState'>ConsumerState</a></td>
+                        <td class='docblock short'>
+                             <p>Holds the current state of the consumer</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.Err.html'
+                               title='nom::Err'>Err</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.ErrorCode.html'
+                               title='nom::ErrorCode'>ErrorCode</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.IResult.html'
+                               title='nom::IResult'>IResult</a></td>
+                        <td class='docblock short'>
+                             <p>Holds the result of parsing functions</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.Needed.html'
+                               title='nom::Needed'>Needed</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='enum' href='enum.ProducerState.html'
+                               title='nom::ProducerState'>ProducerState</a></td>
+                        <td class='docblock short'>
+                             <p>Holds the data producer&#39;s current state</p>
+
+                        </td>
+                    </tr>
+                </table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.AsBytes.html'
+                               title='nom::AsBytes'>AsBytes</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.Consumer.html'
+                               title='nom::Consumer'>Consumer</a></td>
+                        <td class='docblock short'>
+                             <p>Implement the consume method, taking a byte array as input and returning a consumer state</p>
+
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.GetInput.html'
+                               title='nom::GetInput'>GetInput</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.GetOutput.html'
+                               title='nom::GetOutput'>GetOutput</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.HexDisplay.html'
+                               title='nom::HexDisplay'>HexDisplay</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='trait' href='trait.Producer.html'
+                               title='nom::Producer'>Producer</a></td>
+                        <td class='docblock short'>
+                             <p>A producer implements the produce method, currently working with u8 arrays</p>
+
+                        </td>
+                    </tr>
+                </table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.add_error_pattern.html'
+                               title='nom::add_error_pattern'>add_error_pattern</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.alpha.html'
+                               title='nom::alpha'>alpha</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.alphanumeric.html'
+                               title='nom::alphanumeric'>alphanumeric</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.be_f32.html'
+                               title='nom::be_f32'>be_f32</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.be_f64.html'
+                               title='nom::be_f64'>be_f64</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.be_i16.html'
+                               title='nom::be_i16'>be_i16</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.be_i32.html'
+                               title='nom::be_i32'>be_i32</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.be_i64.html'
+                               title='nom::be_i64'>be_i64</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.be_i8.html'
+                               title='nom::be_i8'>be_i8</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.be_u16.html'
+                               title='nom::be_u16'>be_u16</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.be_u32.html'
+                               title='nom::be_u32'>be_u32</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.be_u64.html'
+                               title='nom::be_u64'>be_u64</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.be_u8.html'
+                               title='nom::be_u8'>be_u8</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.begin.html'
+                               title='nom::begin'>begin</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.code_from_offset.html'
+                               title='nom::code_from_offset'>code_from_offset</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.compare_error_paths.html'
+                               title='nom::compare_error_paths'>compare_error_paths</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.digit.html'
+                               title='nom::digit'>digit</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.eof.html'
+                               title='nom::eof'>eof</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.error_to_list.html'
+                               title='nom::error_to_list'>error_to_list</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.generate_colors.html'
+                               title='nom::generate_colors'>generate_colors</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.is_alphabetic.html'
+                               title='nom::is_alphabetic'>is_alphabetic</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.is_alphanumeric.html'
+                               title='nom::is_alphanumeric'>is_alphanumeric</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.is_digit.html'
+                               title='nom::is_digit'>is_digit</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.is_space.html'
+                               title='nom::is_space'>is_space</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.le_i16.html'
+                               title='nom::le_i16'>le_i16</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.le_i32.html'
+                               title='nom::le_i32'>le_i32</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.le_i64.html'
+                               title='nom::le_i64'>le_i64</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.le_i8.html'
+                               title='nom::le_i8'>le_i8</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.le_u16.html'
+                               title='nom::le_u16'>le_u16</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.le_u32.html'
+                               title='nom::le_u32'>le_u32</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.le_u64.html'
+                               title='nom::le_u64'>le_u64</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.le_u8.html'
+                               title='nom::le_u8'>le_u8</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.length_value.html'
+                               title='nom::length_value'>length_value</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.line_ending.html'
+                               title='nom::line_ending'>line_ending</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.multispace.html'
+                               title='nom::multispace'>multispace</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.not_line_ending.html'
+                               title='nom::not_line_ending'>not_line_ending</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.prepare_errors.html'
+                               title='nom::prepare_errors'>prepare_errors</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.print.html'
+                               title='nom::print'>print</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.print_codes.html'
+                               title='nom::print_codes'>print_codes</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.print_error.html'
+                               title='nom::print_error'>print_error</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.print_offsets.html'
+                               title='nom::print_offsets'>print_offsets</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.reset_color.html'
+                               title='nom::reset_color'>reset_color</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.sized_buffer.html'
+                               title='nom::sized_buffer'>sized_buffer</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.slice_to_offsets.html'
+                               title='nom::slice_to_offsets'>slice_to_offsets</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.space.html'
+                               title='nom::space'>space</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.tag_cl.html'
+                               title='nom::tag_cl'>tag_cl</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                
+                    <tr class=' module-item'>
+                        <td><a class='fn' href='fn.write_color.html'
+                               title='nom::write_color'>write_color</a></td>
+                        <td class='docblock short'>
+                             
+                        </td>
+                    </tr>
+                </table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <div id="help" class="hidden">
+        <div class="shortcuts">
+            <h1>Keyboard shortcuts</h1>
+            <dl>
+                <dt>?</dt>
+                <dd>Show this help dialog</dd>
+                <dt>S</dt>
+                <dd>Focus the search field</dd>
+                <dt>&larrb;</dt>
+                <dd>Move up in search results</dd>
+                <dt>&rarrb;</dt>
+                <dd>Move down in search results</dd>
+                <dt>&#9166;</dt>
+                <dd>Go to active search result</dd>
+            </dl>
+        </div>
+        <div class="infos">
+            <h1>Search tricks</h1>
+            <p>
+                Prefix searches with a type followed by a colon (e.g.
+                <code>fn:</code>) to restrict the search to a given type.
+            </p>
+            <p>
+                Accepted types are: <code>fn</code>, <code>mod</code>,
+                <code>struct</code>, <code>enum</code>,
+                <code>trait</code>, <code>typedef</code> (or
+                <code>tdef</code>).
+            </p>
+            <p>
+                Search functions by type signature (e.g.
+                <code>vec -> usize</code>)
+            </p>
+        </div>
+    </div>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "nom";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script async src="../search-index.js"></script>
+</body>
+</html>
